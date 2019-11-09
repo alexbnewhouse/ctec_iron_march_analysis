@@ -1,0 +1,167 @@
+---
+title: "Analytics"
+author: "Alex Newhouse"
+date: "10/24/2019"
+output: 
+    github_document: default
+    html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Text Analytics
+
+When we have mined data from YouTube, the our next step is to extract meaning from the countless megabytes of comments we have at our disposal. This seems like a daunting task, and text *is* a somewhat difficult type of data to work with. But there are plenty of methods at our disposal to make that task easier. We'll set up a number of functions here so we can pass in any data we so choose.
+
+Historically, our main way of filtering and identifying high-risk comments was by running a simple match against our glossary of extremist terms and phrases. This is straightforward using the `googlesheets` and `googledrive` packages.
+
+```{r packages, message=FALSE, warning=FALSE}
+library(googledrive)
+library(googlesheets)
+library(tidyverse)
+library(tidytext)
+```
+
+Please input the name of your comments dataset(s) here.
+
+```{r message=FALSE, warning=FALSE}
+data <- read_csv('../baghdadi_search_11_5_2019.csv')
+```
+
+We then set up a function to read in the glossary, do some pre-processing to make the `(((echo)))` work properly, and put in some regular expressions to clean up punctuation. Running the function below will authenticate with Google twice; make sure you log in with the account that has access to the ECM 2.0 folder.
+
+```{r read, message=FALSE, warning=FALSE}
+# glossary_read <- function(){
+#   glossaryWords <-
+#     drive_get(path = "Glossaries/unformatted_glossary_do_not_edit",
+#               team_drive = as_id("0ALSEDHETQcivUk9PVA")) %>%
+#     select(id) %>%
+#     combine() %>%
+#     gs_key(lookup = FALSE,
+#            visibility = "private") %>%
+#     gs_read_csv(col_names = TRUE) %>%
+#     mutate(word = tolower(Term)) %>%
+#     select(word) %>%
+#     filter(!word %in% c('arson', 'church', 'churches')) %>%
+#     mutate(word = case_when(word == '(((' ~ '\\(\\(\\(',
+#                             word == ')))' ~ '\\)\\)\\)',
+#                             word != '(((' || ')))' ~ word))
+#   return(glossaryWords)
+# }
+# glossaryWords <- glossary_read() %>% write_csv("glossary.csv") 
+
+glossaryWords <- read_csv('glossary.csv') %>% 
+  mutate(word = str_replace(word, ".*\\]\\)", "")) %>% 
+  mutate(word = paste("\\b", word, "\\b", sep = ""))
+
+```
+
+Our next step will be to take our comments dataset and find all of the comments that contain at least one word from our glossary. This is our main way of filtering high-risk comments to pass over to the Qualitative team. 
+
+```{r filter, message=FALSE, warning=FALSE}
+library(furrr)
+plan(multicore)
+
+filtering_func <- function(data) {
+  filter_data <- str_extract_all(tolower(data), paste(glossaryWords$word, collapse = '|'))
+  return(unlist(filter_data))
+}
+
+filter_data <- data
+filter_data$match_term <- future_map(data$textOriginal, filtering_func)
+
+matches <- filter_data %>% 
+  filter(match_term != "character(0)") 
+matches <- unnest(matches, match_term) %>%
+  mutate(match_term = str_trim(match_term)) %>% 
+  unique()
+```
+
+Now that we have our dataframe with glossary matches, we can run some visualizations that will allow us to see the top high-risk words used in a certain timeframe. These are the core visualizations we used in the last iteration of ECM. 
+
+We need to first establish our thematic template. While we may change this over time, all graphs should follow the template. 
+
+```{r message=FALSE, warning=FALSE}
+library(ggthemes)
+library(gghighlight)
+
+standard_theme <- theme_bw() +
+  theme(plot.title = element_text( size=14, face="bold.italic"),
+        axis.title = element_text(color="#022543", size=14, face="bold"))
+```
+
+Now we're going to set up a single function to make all three visualizations. 
+
+```{r message=FALSE, warning=FALSE}
+library(lubridate)
+data <- matches
+graph <- function(data, max_val){
+  stage1_text <- data %>%
+    select(authorDisplayName, authorChannelId.value, id, publishedAt, match_term)
+  
+  stage1_time <- stage1_text %>% 
+    mutate(week = as.character(floor_date(publishedAt, 'weeks'))) %>% 
+    unnest(match_term) %>% 
+    group_by(week, match_term) %>% 
+    summarize(N = n()) %>% 
+    mutate(freq = N/sum(N)) %>%
+    ungroup() %>% 
+    complete(week, match_term, fill = list(N = 0, freq = 0))
+  
+  stage1_user <- stage1_text %>%
+    replace_na(list(y = list(tibble(a = NA, b = NA)))) %>% 
+    unnest(match_term) %>%
+    mutate(id_word = paste(id, match_term, sep = ' '))  %>%
+    group_by(authorChannelId.value, match_term) %>% 
+    summarize(N = n()) %>% 
+    mutate(freq = N/sum(N)) %>%
+    ungroup() %>% 
+    complete(authorChannelId.value, match_term, fill = list(N = 0, freq = 0)) %>% 
+    group_by(match_term) %>% 
+    summarize(average = mean(N))
+  
+  l <- stage1_time %>% 
+    filter(match_term != 'brother') %>%
+    head(20) %>%
+
+    mutate(match_word = factor(match_term, match_term)) %>%
+    arrange(freq) %>% 
+    ggplot(mapping = aes(x = reorder(match_term, -freq), y = freq)) +
+    geom_col(fill = "#d2232a") +
+    standard_theme +
+    #scale_x_discrete(name=NULL) +
+    coord_flip() +
+    scale_x_discrete(name = 'Word') +
+    scale_y_continuous(name = 'Frequency of High-Risk Word Use') +
+    ggtitle("Top 20 High-Risk Words by Total Frequency", subtitle = "Based on comments published between July 1 and July 14, 2019")
+  l
+  
+  m <- stage1_user %>%
+    filter(match_term != 'brother') %>%
+    head(20) %>%
+    arrange(average) %>% 
+    mutate(match_word = factor(match_term, match_term)) %>%
+    ggplot(mapping = aes(x = reorder(match_term, -average), y = average)) +
+    geom_col(fill = "#d2232a") +
+    standard_theme +
+    #scale_x_discrete(name=NULL) +
+    coord_flip() +
+    scale_x_discrete(name = 'Word') +
+    scale_y_continuous(name = 'Average Frequency Per User') +
+    ggtitle("Top 20 High-Risk Words by Average Frequency Per User", subtitle = "Based on comments published between July 1 and July 14, 2019")
+  
+  list1 <- list('user' = m, 'time' = l)
+  return(list1)
+}
+
+g <- graph(matches, 500)
+g$user
+g$time
+```
+
+
+
+
+

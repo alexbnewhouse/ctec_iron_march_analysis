@@ -1,0 +1,25 @@
+{
+    "collab_server" : "",
+    "contents" : "",
+    "created" : 1573334716259.000,
+    "dirty" : false,
+    "encoding" : "UTF-8",
+    "folds" : "",
+    "hash" : "0",
+    "id" : "9BEECB42",
+    "lastKnownWriteTime" : 1573192565,
+    "last_content_update" : 1573192565,
+    "path" : "~/ECM-2/analysis/README.Rmd",
+    "project_path" : null,
+    "properties" : {
+        "cursorPosition" : "152,142",
+        "scrollLine" : "137"
+    },
+    "read_only" : false,
+    "read_only_alternatives" : [
+    ],
+    "relative_order" : 2,
+    "source_on_save" : false,
+    "source_window" : "",
+    "type" : "r_markdown"
+}

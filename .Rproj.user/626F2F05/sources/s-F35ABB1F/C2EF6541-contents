@@ -1,0 +1,52 @@
+---
+title: "Analytics"
+author: "Alex Newhouse"
+date: "10/24/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Text Analytics
+
+When we have mined data from YouTube, the our next step is to extract meaning from the countless megabytes of comments we have at our disposal. This seems like a daunting task, and text *is* a somewhat difficult type of data to work with. But there are plenty of methods at our disposal to make that task easier. We'll set up a number of functions here so we can pass in any data we so choose.
+
+Historically, our main way of filtering and identifying high-risk comments was by running a simple match against our glossary of extremist terms and phrases. This is straightforward using the `googlesheets` and `googledrive` packages.
+
+```{r glossary}
+library(googledrive)
+library(googlesheets)
+library(tidyverse)
+library(tidytext)
+
+glossary_read <- function(){
+  glossaryWords <- 
+    drive_get(path = "Curated Glossary/Curated Glossary",
+              team_drive = as_id("0AGAS-YIXScA6Uk9PVA")) %>% 
+    select(id) %>% 
+    combine() %>% 
+    gs_key(lookup = FALSE, 
+           visibility = "private") %>% 
+    gs_read_csv(col_names = FALSE) %>% 
+    mutate(word = tolower(X1)) %>%
+    select(word) %>% 
+    filter(!word %in% c('arson', 'church', 'churches')) %>% 
+    mutate(word = case_when(word == '(((' ~ '\\(\\(\\(',
+                            word == ')))' ~ '\\)\\)\\)',
+                            word != '(((' || ')))' ~ word)) %>%
+    mutate(word = paste('(^|\\W|[[:punct:]])', word, sep=''))
+  return(glossaryWords)
+}
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.

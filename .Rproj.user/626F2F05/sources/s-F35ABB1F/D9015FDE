@@ -1,0 +1,26 @@
+{
+    "collab_server" : "",
+    "contents" : "",
+    "created" : 1573153859583.000,
+    "dirty" : false,
+    "encoding" : "UTF-8",
+    "folds" : "",
+    "hash" : "0",
+    "id" : "D9015FDE",
+    "lastKnownWriteTime" : 1573335845,
+    "last_content_update" : 1573335845041,
+    "path" : "~/ctec_iron_march_analysis/iron_march_analysis.R",
+    "project_path" : "iron_march_analysis.R",
+    "properties" : {
+        "cursorPosition" : "76,0",
+        "scrollLine" : "52",
+        "tempName" : "Untitled1"
+    },
+    "read_only" : false,
+    "read_only_alternatives" : [
+    ],
+    "relative_order" : 1,
+    "source_on_save" : false,
+    "source_window" : "",
+    "type" : "r_source"
+}
